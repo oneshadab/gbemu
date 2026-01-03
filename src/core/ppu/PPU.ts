@@ -180,20 +180,9 @@ export class PPU {
   private renderScanline(): void {
     const lcdc = this.mmu.getIO(0x40);
 
-    // Check if background is enabled
-    if (getBit(lcdc, LCDC_BG_ENABLE)) {
-      this.renderBackground();
-    } else {
-      // If background is disabled, fill scanline with darkest color
-      const color = DMG_COLORS[3];
-      for (let x = 0; x < SCREEN_WIDTH; x++) {
-        const fbIndex = (this.line * SCREEN_WIDTH + x) * 4;
-        this.framebuffer[fbIndex] = color[0];
-        this.framebuffer[fbIndex + 1] = color[1];
-        this.framebuffer[fbIndex + 2] = color[2];
-        this.framebuffer[fbIndex + 3] = 255;
-      }
-    }
+    // Always render background (even if disabled, it just shows as white)
+    // On DMG, bit 0 controls priority, not visibility
+    this.renderBackground();
 
     // Check if sprites are enabled
     if (getBit(lcdc, LCDC_OBJ_ENABLE)) {

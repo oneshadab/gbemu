@@ -121,4 +121,33 @@ export class Timer {
     this.mmu.setInterruptFlag(interruptFlag | (1 << 2)); // Bit 2 = Timer interrupt
     logger.debug('Timer interrupt requested');
   }
+
+  /**
+   * Handle writes to timer registers
+   * This must be called by MMU when timer registers are written
+   */
+  handleRegisterWrite(address: number, value: number): void {
+    switch (address) {
+      case 0xFF04: // DIV
+        // Writing any value to DIV resets it to 0 and resets the internal counter
+        // In real hardware, DIV and TIMA share a counter, so this affects both
+        this.divCounter = 0;
+        this.timaCounter = 0; // Reset TIMA counter too since they share the same clock
+        this.mmu.setIO(0x04, 0);
+        break;
+
+      case 0xFF05: // TIMA
+        // Writing to TIMA just sets its value, doesn't reset the counter
+        this.mmu.setIO(0x05, value);
+        break;
+
+      case 0xFF07: // TAC
+        // Writing to TAC just sets the control register
+        // Don't reset counter - let the frequency change take effect naturally
+        this.mmu.setIO(0x07, value);
+        break;
+
+      // TMA (0xFF06) doesn't need special handling
+    }
+  }
 }

@@ -32,6 +32,9 @@ export class MMU {
   // Cartridge (contains MBC internally)
   private cartridge: Cartridge | null = null;
 
+  // Timer reference (set after construction)
+  private timer: any = null;
+
   constructor() {
     this.vram = new Uint8Array(0x2000);  // 8KB
     this.wram = new Uint8Array(0x2000);  // 8KB
@@ -41,6 +44,13 @@ export class MMU {
 
     // Initialize I/O registers to default values
     this.initializeIO();
+  }
+
+  /**
+   * Set timer reference (called after Timer is constructed)
+   */
+  setTimer(timer: any): void {
+    this.timer = timer;
   }
 
   /**
@@ -258,7 +268,12 @@ export class MMU {
     // Special handling for certain registers
     switch (address) {
       case 0xFF04: // DIV - writing any value resets to 0
-        this.io[offset] = 0;
+      case 0xFF05: // TIMA - Timer counter
+      case 0xFF07: // TAC - Timer control
+        // Notify timer of register write so it can update internal state
+        if (this.timer) {
+          this.timer.handleRegisterWrite(address, value);
+        }
         break;
 
       case 0xFF44: // LY - read-only, ignore writes

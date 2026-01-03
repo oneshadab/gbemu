@@ -34,6 +34,9 @@ export class GameBoy {
     this.timer = new Timer(this.mmu);
     this.joypad = new Joypad(this.mmu);
 
+    // Wire up timer to MMU so it receives register write notifications
+    this.mmu.setTimer(this.timer);
+
     logger.info('GameBoy emulator initialized');
   }
 
