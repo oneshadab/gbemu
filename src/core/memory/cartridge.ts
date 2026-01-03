@@ -1,4 +1,7 @@
 import { logger } from '@/utils/logger';
+import { MemoryBankController } from './mbcs/types';
+import { NoMBC } from './mbcs/NoMBC';
+import { MBC1 } from './mbcs/MBC1';
 
 /**
  * Cartridge types (based on byte 0x0147)
@@ -43,7 +46,7 @@ const RAM_SIZES: Record<number, number> = {
 
 export class Cartridge {
   private rom: Uint8Array;
-  private ram: Uint8Array;
+  private mbc: MemoryBankController;
 
   // Header info
   title: string = '';
@@ -55,13 +58,32 @@ export class Cartridge {
     this.rom = romData;
     this.parseHeader();
 
-    // Allocate RAM if needed
-    this.ram = new Uint8Array(this.ramSize);
+    // Create appropriate MBC controller
+    this.mbc = this.createMBC();
 
     logger.info(`Cartridge loaded: "${this.title}"`);
     logger.info(`  Type: 0x${this.type.toString(16).padStart(2, '0')}`);
     logger.info(`  ROM: ${this.romSize / 1024}KB`);
     logger.info(`  RAM: ${this.ramSize / 1024}KB`);
+  }
+
+  /**
+   * Create appropriate Memory Bank Controller based on cartridge type
+   */
+  private createMBC(): MemoryBankController {
+    switch (this.type) {
+      case CartridgeType.ROM_ONLY:
+        return new NoMBC(this.rom, this.ramSize);
+
+      case CartridgeType.MBC1:
+      case CartridgeType.MBC1_RAM:
+      case CartridgeType.MBC1_RAM_BATTERY:
+        return new MBC1(this.rom, this.ramSize);
+
+      default:
+        logger.warn(`Unsupported cartridge type 0x${this.type.toString(16)}, using NoMBC`);
+        return new NoMBC(this.rom, this.ramSize);
+    }
   }
 
   /**
@@ -90,44 +112,38 @@ export class Cartridge {
   }
 
   /**
-   * Read byte from ROM
+   * Read byte from ROM bank 0 (0x0000-0x3FFF)
    */
-  readROM(address: number): number {
-    if (address >= this.rom.length) {
-      logger.warn(`ROM read out of bounds: 0x${address.toString(16)}`);
-      return 0xFF;
-    }
-    return this.rom[address];
+  readROMBank0(address: number): number {
+    return this.mbc.readROMBank0(address);
   }
 
   /**
-   * Read byte from RAM
+   * Read byte from switchable ROM bank (0x4000-0x7FFF)
+   */
+  readROMBank1(address: number): number {
+    return this.mbc.readROMBank1(address);
+  }
+
+  /**
+   * Read byte from RAM (0xA000-0xBFFF)
    */
   readRAM(address: number): number {
-    if (this.ramSize === 0) {
-      logger.warn('Attempted to read from non-existent RAM');
-      return 0xFF;
-    }
-    if (address >= this.ram.length) {
-      logger.warn(`RAM read out of bounds: 0x${address.toString(16)}`);
-      return 0xFF;
-    }
-    return this.ram[address];
+    return this.mbc.readRAM(address);
   }
 
   /**
-   * Write byte to RAM
+   * Write byte to RAM (0xA000-0xBFFF)
    */
   writeRAM(address: number, value: number): void {
-    if (this.ramSize === 0) {
-      logger.warn('Attempted to write to non-existent RAM');
-      return;
-    }
-    if (address >= this.ram.length) {
-      logger.warn(`RAM write out of bounds: 0x${address.toString(16)}`);
-      return;
-    }
-    this.ram[address] = value & 0xFF;
+    this.mbc.writeRAM(address, value);
+  }
+
+  /**
+   * Write to MBC control registers (0x0000-0x7FFF)
+   */
+  writeControl(address: number, value: number): void {
+    this.mbc.writeControl(address, value);
   }
 
   /**

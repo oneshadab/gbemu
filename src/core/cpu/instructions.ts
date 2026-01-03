@@ -407,3 +407,621 @@ def(0x76, 'HALT', 4, (cpu) => {
   cpu.halted = true;
   return 4;
 });
+
+// ============================================================================
+// Additional Instructions (Phase 9)
+// ============================================================================
+
+// 0x07: RLCA (Rotate A left)
+def(0x07, 'RLCA', 4, (cpu) => {
+  const carry = (cpu.registers.a & 0x80) !== 0;
+  cpu.registers.a = to8Bit((cpu.registers.a << 1) | (carry ? 1 : 0));
+  cpu.registers.setZeroFlag(false);
+  cpu.registers.setSubtractFlag(false);
+  cpu.registers.setHalfCarryFlag(false);
+  cpu.registers.setCarryFlag(carry);
+  return 4;
+});
+
+// 0x0F: RRCA (Rotate A right)
+def(0x0F, 'RRCA', 4, (cpu) => {
+  const carry = (cpu.registers.a & 0x01) !== 0;
+  cpu.registers.a = to8Bit((cpu.registers.a >> 1) | (carry ? 0x80 : 0));
+  cpu.registers.setZeroFlag(false);
+  cpu.registers.setSubtractFlag(false);
+  cpu.registers.setHalfCarryFlag(false);
+  cpu.registers.setCarryFlag(carry);
+  return 4;
+});
+
+// 0x0A: LD A, (BC)
+def(0x0A, 'LD A, (BC)', 8, (cpu) => {
+  cpu.registers.a = cpu.mmu.read(cpu.registers.getBC());
+  return 8;
+});
+
+// 0x12: LD (DE), A
+def(0x12, 'LD (DE), A', 8, (cpu) => {
+  cpu.mmu.write(cpu.registers.getDE(), cpu.registers.a);
+  return 8;
+});
+
+// 0x1F: RRA (Rotate A right through carry)
+def(0x1F, 'RRA', 4, (cpu) => {
+  const oldCarry = cpu.registers.getCarryFlag() ? 0x80 : 0;
+  const newCarry = (cpu.registers.a & 0x01) !== 0;
+  cpu.registers.a = to8Bit((cpu.registers.a >> 1) | oldCarry);
+  cpu.registers.setZeroFlag(false);
+  cpu.registers.setSubtractFlag(false);
+  cpu.registers.setHalfCarryFlag(false);
+  cpu.registers.setCarryFlag(newCarry);
+  return 4;
+});
+
+// 0x27: DAA (Decimal Adjust Accumulator)
+def(0x27, 'DAA', 4, (cpu) => {
+  let a = cpu.registers.a;
+
+  if (!cpu.registers.getSubtractFlag()) {
+    if (cpu.registers.getCarryFlag() || a > 0x99) {
+      a = to8Bit(a + 0x60);
+      cpu.registers.setCarryFlag(true);
+    }
+    if (cpu.registers.getHalfCarryFlag() || (a & 0x0F) > 0x09) {
+      a = to8Bit(a + 0x06);
+    }
+  } else {
+    if (cpu.registers.getCarryFlag()) {
+      a = to8Bit(a - 0x60);
+    }
+    if (cpu.registers.getHalfCarryFlag()) {
+      a = to8Bit(a - 0x06);
+    }
+  }
+
+  cpu.registers.a = a;
+  cpu.updateZeroFlag(a);
+  cpu.registers.setHalfCarryFlag(false);
+  return 4;
+});
+
+// 0x2F: CPL (Complement A)
+def(0x2F, 'CPL', 4, (cpu) => {
+  cpu.registers.a = to8Bit(~cpu.registers.a);
+  cpu.registers.setSubtractFlag(true);
+  cpu.registers.setHalfCarryFlag(true);
+  return 4;
+});
+
+// 0x33: INC SP
+def(0x33, 'INC SP', 8, (cpu) => {
+  cpu.registers.sp = to16Bit(cpu.registers.sp + 1);
+  return 8;
+});
+
+// 0x34: INC (HL)
+def(0x34, 'INC (HL)', 12, (cpu) => {
+  const addr = cpu.registers.getHL();
+  let value = cpu.mmu.read(addr);
+  value = to8Bit(value + 1);
+  cpu.mmu.write(addr, value);
+  cpu.updateZeroFlag(value);
+  cpu.updateSubtractFlag(false);
+  cpu.updateHalfCarryFlag(value - 1, 1);
+  return 12;
+});
+
+// 0x35: DEC (HL)
+def(0x35, 'DEC (HL)', 12, (cpu) => {
+  const addr = cpu.registers.getHL();
+  let value = cpu.mmu.read(addr);
+  value = to8Bit(value - 1);
+  cpu.mmu.write(addr, value);
+  cpu.updateZeroFlag(value);
+  cpu.updateSubtractFlag(true);
+  cpu.updateHalfCarryFlag(value + 1, 1, true);
+  return 12;
+});
+
+// 0x36: LD (HL), n
+def(0x36, 'LD (HL), n', 12, (cpu) => {
+  const value = cpu.readPC();
+  cpu.mmu.write(cpu.registers.getHL(), value);
+  return 12;
+});
+
+// 0x37: SCF (Set Carry Flag)
+def(0x37, 'SCF', 4, (cpu) => {
+  cpu.registers.setSubtractFlag(false);
+  cpu.registers.setHalfCarryFlag(false);
+  cpu.registers.setCarryFlag(true);
+  return 4;
+});
+
+// 0x3A: LD A, (HL-)
+def(0x3A, 'LD A, (HL-)', 8, (cpu) => {
+  cpu.registers.a = cpu.mmu.read(cpu.registers.getHL());
+  cpu.registers.setHL(to16Bit(cpu.registers.getHL() - 1));
+  return 8;
+});
+
+// 0x3B: DEC SP
+def(0x3B, 'DEC SP', 8, (cpu) => {
+  cpu.registers.sp = to16Bit(cpu.registers.sp - 1);
+  return 8;
+});
+
+// 0x3C: INC A
+def(0x3C, 'INC A', 4, (cpu) => {
+  cpu.registers.a = to8Bit(cpu.registers.a + 1);
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(false);
+  cpu.updateHalfCarryFlag(cpu.registers.a - 1, 1);
+  return 4;
+});
+
+// 0x3F: CCF (Complement Carry Flag)
+def(0x3F, 'CCF', 4, (cpu) => {
+  cpu.registers.setSubtractFlag(false);
+  cpu.registers.setHalfCarryFlag(false);
+  cpu.registers.setCarryFlag(!cpu.registers.getCarryFlag());
+  return 4;
+});
+
+// More LD r, r' instructions (0x48-0x75)
+def(0x48, 'LD C, B', 4, (cpu) => { cpu.registers.c = cpu.registers.b; return 4; });
+def(0x49, 'LD C, C', 4, (cpu) => { cpu.registers.c = cpu.registers.c; return 4; });
+def(0x4A, 'LD C, D', 4, (cpu) => { cpu.registers.c = cpu.registers.d; return 4; });
+def(0x4B, 'LD C, E', 4, (cpu) => { cpu.registers.c = cpu.registers.e; return 4; });
+def(0x4C, 'LD C, H', 4, (cpu) => { cpu.registers.c = cpu.registers.h; return 4; });
+def(0x4D, 'LD C, L', 4, (cpu) => { cpu.registers.c = cpu.registers.l; return 4; });
+def(0x4E, 'LD C, (HL)', 8, (cpu) => { cpu.registers.c = cpu.mmu.read(cpu.registers.getHL()); return 8; });
+
+def(0x50, 'LD D, B', 4, (cpu) => { cpu.registers.d = cpu.registers.b; return 4; });
+def(0x51, 'LD D, C', 4, (cpu) => { cpu.registers.d = cpu.registers.c; return 4; });
+def(0x52, 'LD D, D', 4, (cpu) => { cpu.registers.d = cpu.registers.d; return 4; });
+def(0x53, 'LD D, E', 4, (cpu) => { cpu.registers.d = cpu.registers.e; return 4; });
+def(0x54, 'LD D, H', 4, (cpu) => { cpu.registers.d = cpu.registers.h; return 4; });
+def(0x55, 'LD D, L', 4, (cpu) => { cpu.registers.d = cpu.registers.l; return 4; });
+def(0x56, 'LD D, (HL)', 8, (cpu) => { cpu.registers.d = cpu.mmu.read(cpu.registers.getHL()); return 8; });
+def(0x57, 'LD D, A', 4, (cpu) => { cpu.registers.d = cpu.registers.a; return 4; });
+
+def(0x58, 'LD E, B', 4, (cpu) => { cpu.registers.e = cpu.registers.b; return 4; });
+def(0x59, 'LD E, C', 4, (cpu) => { cpu.registers.e = cpu.registers.c; return 4; });
+def(0x5A, 'LD E, D', 4, (cpu) => { cpu.registers.e = cpu.registers.d; return 4; });
+def(0x5B, 'LD E, E', 4, (cpu) => { cpu.registers.e = cpu.registers.e; return 4; });
+def(0x5C, 'LD E, H', 4, (cpu) => { cpu.registers.e = cpu.registers.h; return 4; });
+def(0x5D, 'LD E, L', 4, (cpu) => { cpu.registers.e = cpu.registers.l; return 4; });
+def(0x5E, 'LD E, (HL)', 8, (cpu) => { cpu.registers.e = cpu.mmu.read(cpu.registers.getHL()); return 8; });
+def(0x5F, 'LD E, A', 4, (cpu) => { cpu.registers.e = cpu.registers.a; return 4; });
+
+def(0x60, 'LD H, B', 4, (cpu) => { cpu.registers.h = cpu.registers.b; return 4; });
+def(0x61, 'LD H, C', 4, (cpu) => { cpu.registers.h = cpu.registers.c; return 4; });
+def(0x62, 'LD H, D', 4, (cpu) => { cpu.registers.h = cpu.registers.d; return 4; });
+def(0x63, 'LD H, E', 4, (cpu) => { cpu.registers.h = cpu.registers.e; return 4; });
+def(0x64, 'LD H, H', 4, (cpu) => { cpu.registers.h = cpu.registers.h; return 4; });
+def(0x65, 'LD H, L', 4, (cpu) => { cpu.registers.h = cpu.registers.l; return 4; });
+def(0x66, 'LD H, (HL)', 8, (cpu) => { cpu.registers.h = cpu.mmu.read(cpu.registers.getHL()); return 8; });
+def(0x67, 'LD H, A', 4, (cpu) => { cpu.registers.h = cpu.registers.a; return 4; });
+
+def(0x68, 'LD L, B', 4, (cpu) => { cpu.registers.l = cpu.registers.b; return 4; });
+def(0x69, 'LD L, C', 4, (cpu) => { cpu.registers.l = cpu.registers.c; return 4; });
+def(0x6A, 'LD L, D', 4, (cpu) => { cpu.registers.l = cpu.registers.d; return 4; });
+def(0x6B, 'LD L, E', 4, (cpu) => { cpu.registers.l = cpu.registers.e; return 4; });
+def(0x6C, 'LD L, H', 4, (cpu) => { cpu.registers.l = cpu.registers.h; return 4; });
+def(0x6D, 'LD L, L', 4, (cpu) => { cpu.registers.l = cpu.registers.l; return 4; });
+def(0x6E, 'LD L, (HL)', 8, (cpu) => { cpu.registers.l = cpu.mmu.read(cpu.registers.getHL()); return 8; });
+def(0x6F, 'LD L, A', 4, (cpu) => { cpu.registers.l = cpu.registers.a; return 4; });
+
+def(0x70, 'LD (HL), B', 8, (cpu) => { cpu.mmu.write(cpu.registers.getHL(), cpu.registers.b); return 8; });
+def(0x71, 'LD (HL), C', 8, (cpu) => { cpu.mmu.write(cpu.registers.getHL(), cpu.registers.c); return 8; });
+def(0x72, 'LD (HL), D', 8, (cpu) => { cpu.mmu.write(cpu.registers.getHL(), cpu.registers.d); return 8; });
+def(0x73, 'LD (HL), E', 8, (cpu) => { cpu.mmu.write(cpu.registers.getHL(), cpu.registers.e); return 8; });
+def(0x74, 'LD (HL), H', 8, (cpu) => { cpu.mmu.write(cpu.registers.getHL(), cpu.registers.h); return 8; });
+def(0x75, 'LD (HL), L', 8, (cpu) => { cpu.mmu.write(cpu.registers.getHL(), cpu.registers.l); return 8; });
+
+def(0x79, 'LD A, C', 4, (cpu) => { cpu.registers.a = cpu.registers.c; return 4; });
+def(0x7A, 'LD A, D', 4, (cpu) => { cpu.registers.a = cpu.registers.d; return 4; });
+def(0x7E, 'LD A, (HL)', 8, (cpu) => { cpu.registers.a = cpu.mmu.read(cpu.registers.getHL()); return 8; });
+def(0x7F, 'LD A, A', 4, (cpu) => { cpu.registers.a = cpu.registers.a; return 4; });
+
+// ALU operations: ADD, ADC, SUB, SBC, AND, XOR, OR, CP (0x80-0xBF)
+// ADD A, r
+def(0x80, 'ADD A, B', 4, (cpu) => {
+  const result = cpu.registers.a + cpu.registers.b;
+  cpu.updateHalfCarryFlag(cpu.registers.a, cpu.registers.b);
+  cpu.updateCarryFlagAdd(cpu.registers.a, cpu.registers.b);
+  cpu.registers.a = to8Bit(result);
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(false);
+  return 4;
+});
+
+def(0x81, 'ADD A, C', 4, (cpu) => {
+  const result = cpu.registers.a + cpu.registers.c;
+  cpu.updateHalfCarryFlag(cpu.registers.a, cpu.registers.c);
+  cpu.updateCarryFlagAdd(cpu.registers.a, cpu.registers.c);
+  cpu.registers.a = to8Bit(result);
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(false);
+  return 4;
+});
+
+def(0x82, 'ADD A, D', 4, (cpu) => {
+  const result = cpu.registers.a + cpu.registers.d;
+  cpu.updateHalfCarryFlag(cpu.registers.a, cpu.registers.d);
+  cpu.updateCarryFlagAdd(cpu.registers.a, cpu.registers.d);
+  cpu.registers.a = to8Bit(result);
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(false);
+  return 4;
+});
+
+def(0x83, 'ADD A, E', 4, (cpu) => {
+  const result = cpu.registers.a + cpu.registers.e;
+  cpu.updateHalfCarryFlag(cpu.registers.a, cpu.registers.e);
+  cpu.updateCarryFlagAdd(cpu.registers.a, cpu.registers.e);
+  cpu.registers.a = to8Bit(result);
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(false);
+  return 4;
+});
+
+def(0x86, 'ADD A, (HL)', 8, (cpu) => {
+  const value = cpu.mmu.read(cpu.registers.getHL());
+  cpu.updateHalfCarryFlag(cpu.registers.a, value);
+  cpu.updateCarryFlagAdd(cpu.registers.a, value);
+  cpu.registers.a = to8Bit(cpu.registers.a + value);
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(false);
+  return 8;
+});
+
+def(0x87, 'ADD A, A', 4, (cpu) => {
+  const result = cpu.registers.a + cpu.registers.a;
+  cpu.updateHalfCarryFlag(cpu.registers.a, cpu.registers.a);
+  cpu.updateCarryFlagAdd(cpu.registers.a, cpu.registers.a);
+  cpu.registers.a = to8Bit(result);
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(false);
+  return 4;
+});
+
+// SUB A, r
+def(0x90, 'SUB B', 4, (cpu) => {
+  cpu.updateHalfCarryFlag(cpu.registers.a, cpu.registers.b, true);
+  cpu.updateCarryFlagSubtract(cpu.registers.a, cpu.registers.b);
+  cpu.registers.a = to8Bit(cpu.registers.a - cpu.registers.b);
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(true);
+  return 4;
+});
+
+def(0x97, 'SUB A', 4, (cpu) => {
+  cpu.registers.a = 0;
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(true);
+  cpu.registers.setHalfCarryFlag(false);
+  cpu.registers.setCarryFlag(false);
+  return 4;
+});
+
+// AND A, r
+def(0xA0, 'AND B', 4, (cpu) => {
+  cpu.registers.a = to8Bit(cpu.registers.a & cpu.registers.b);
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(false);
+  cpu.registers.setHalfCarryFlag(true);
+  cpu.registers.setCarryFlag(false);
+  return 4;
+});
+
+def(0xA7, 'AND A', 4, (cpu) => {
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(false);
+  cpu.registers.setHalfCarryFlag(true);
+  cpu.registers.setCarryFlag(false);
+  return 4;
+});
+
+// OR A, r
+def(0xB0, 'OR B', 4, (cpu) => {
+  cpu.registers.a = to8Bit(cpu.registers.a | cpu.registers.b);
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(false);
+  cpu.registers.setHalfCarryFlag(false);
+  cpu.registers.setCarryFlag(false);
+  return 4;
+});
+
+def(0xB1, 'OR C', 4, (cpu) => {
+  cpu.registers.a = to8Bit(cpu.registers.a | cpu.registers.c);
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(false);
+  cpu.registers.setHalfCarryFlag(false);
+  cpu.registers.setCarryFlag(false);
+  return 4;
+});
+
+def(0xB7, 'OR A', 4, (cpu) => {
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(false);
+  cpu.registers.setHalfCarryFlag(false);
+  cpu.registers.setCarryFlag(false);
+  return 4;
+});
+
+// CP A, r
+def(0xB8, 'CP B', 4, (cpu) => {
+  const result = cpu.registers.a - cpu.registers.b;
+  cpu.updateZeroFlag(result);
+  cpu.updateSubtractFlag(true);
+  cpu.updateHalfCarryFlag(cpu.registers.a, cpu.registers.b, true);
+  cpu.updateCarryFlagSubtract(cpu.registers.a, cpu.registers.b);
+  return 4;
+});
+
+def(0xBE, 'CP (HL)', 8, (cpu) => {
+  const value = cpu.mmu.read(cpu.registers.getHL());
+  const result = cpu.registers.a - value;
+  cpu.updateZeroFlag(result);
+  cpu.updateSubtractFlag(true);
+  cpu.updateHalfCarryFlag(cpu.registers.a, value, true);
+  cpu.updateCarryFlagSubtract(cpu.registers.a, value);
+  return 8;
+});
+
+def(0xBF, 'CP A', 4, (cpu) => {
+  cpu.registers.setZeroFlag(true);
+  cpu.updateSubtractFlag(true);
+  cpu.registers.setHalfCarryFlag(false);
+  cpu.registers.setCarryFlag(false);
+  return 4;
+});
+
+// Conditional returns (0xC0, 0xC8, 0xD0, 0xD8)
+def(0xC0, 'RET NZ', 8, (cpu) => {
+  if (!cpu.registers.getZeroFlag()) {
+    cpu.registers.pc = cpu.popStack();
+    return 20;
+  }
+  return 8;
+});
+
+def(0xC8, 'RET Z', 8, (cpu) => {
+  if (cpu.registers.getZeroFlag()) {
+    cpu.registers.pc = cpu.popStack();
+    return 20;
+  }
+  return 8;
+});
+
+def(0xD0, 'RET NC', 8, (cpu) => {
+  if (!cpu.registers.getCarryFlag()) {
+    cpu.registers.pc = cpu.popStack();
+    return 20;
+  }
+  return 8;
+});
+
+def(0xD8, 'RET C', 8, (cpu) => {
+  if (cpu.registers.getCarryFlag()) {
+    cpu.registers.pc = cpu.popStack();
+    return 20;
+  }
+  return 8;
+});
+
+// PUSH/POP
+def(0xC1, 'POP BC', 12, (cpu) => {
+  cpu.registers.setBC(cpu.popStack());
+  return 12;
+});
+
+def(0xD1, 'POP DE', 12, (cpu) => {
+  cpu.registers.setDE(cpu.popStack());
+  return 12;
+});
+
+def(0xE1, 'POP HL', 12, (cpu) => {
+  cpu.registers.setHL(cpu.popStack());
+  return 12;
+});
+
+def(0xF1, 'POP AF', 12, (cpu) => {
+  cpu.registers.setAF(cpu.popStack());
+  return 12;
+});
+
+def(0xD5, 'PUSH DE', 16, (cpu) => {
+  cpu.pushStack(cpu.registers.getDE());
+  return 16;
+});
+
+def(0xE5, 'PUSH HL', 16, (cpu) => {
+  cpu.pushStack(cpu.registers.getHL());
+  return 16;
+});
+
+def(0xF5, 'PUSH AF', 16, (cpu) => {
+  cpu.pushStack(cpu.registers.getAF());
+  return 16;
+});
+
+// Conditional jumps (0xC2, 0xCA, 0xD2, 0xDA)
+def(0xC2, 'JP NZ, nn', 12, (cpu) => {
+  const address = cpu.read16PC();
+  if (!cpu.registers.getZeroFlag()) {
+    cpu.registers.pc = address;
+    return 16;
+  }
+  return 12;
+});
+
+def(0xCA, 'JP Z, nn', 12, (cpu) => {
+  const address = cpu.read16PC();
+  if (cpu.registers.getZeroFlag()) {
+    cpu.registers.pc = address;
+    return 16;
+  }
+  return 12;
+});
+
+def(0xD2, 'JP NC, nn', 12, (cpu) => {
+  const address = cpu.read16PC();
+  if (!cpu.registers.getCarryFlag()) {
+    cpu.registers.pc = address;
+    return 16;
+  }
+  return 12;
+});
+
+def(0xDA, 'JP C, nn', 12, (cpu) => {
+  const address = cpu.read16PC();
+  if (cpu.registers.getCarryFlag()) {
+    cpu.registers.pc = address;
+    return 16;
+  }
+  return 12;
+});
+
+// Conditional calls (0xC4, 0xCC, 0xD4, 0xDC)
+def(0xC4, 'CALL NZ, nn', 12, (cpu) => {
+  const address = cpu.read16PC();
+  if (!cpu.registers.getZeroFlag()) {
+    cpu.pushStack(cpu.registers.pc);
+    cpu.registers.pc = address;
+    return 24;
+  }
+  return 12;
+});
+
+def(0xCC, 'CALL Z, nn', 12, (cpu) => {
+  const address = cpu.read16PC();
+  if (cpu.registers.getZeroFlag()) {
+    cpu.pushStack(cpu.registers.pc);
+    cpu.registers.pc = address;
+    return 24;
+  }
+  return 12;
+});
+
+def(0xC6, 'ADD A, n', 8, (cpu) => {
+  const value = cpu.readPC();
+  cpu.updateHalfCarryFlag(cpu.registers.a, value);
+  cpu.updateCarryFlagAdd(cpu.registers.a, value);
+  cpu.registers.a = to8Bit(cpu.registers.a + value);
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(false);
+  return 8;
+});
+
+def(0xCE, 'ADC A, n', 8, (cpu) => {
+  const value = cpu.readPC();
+  const carry = cpu.registers.getCarryFlag() ? 1 : 0;
+  const result = cpu.registers.a + value + carry;
+  cpu.updateHalfCarryFlag(cpu.registers.a, value + carry);
+  cpu.registers.setCarryFlag(result > 0xFF);
+  cpu.registers.a = to8Bit(result);
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(false);
+  return 8;
+});
+
+def(0xD6, 'SUB n', 8, (cpu) => {
+  const value = cpu.readPC();
+  cpu.updateHalfCarryFlag(cpu.registers.a, value, true);
+  cpu.updateCarryFlagSubtract(cpu.registers.a, value);
+  cpu.registers.a = to8Bit(cpu.registers.a - value);
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(true);
+  return 8;
+});
+
+def(0xE6, 'AND n', 8, (cpu) => {
+  const value = cpu.readPC();
+  cpu.registers.a = to8Bit(cpu.registers.a & value);
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(false);
+  cpu.registers.setHalfCarryFlag(true);
+  cpu.registers.setCarryFlag(false);
+  return 8;
+});
+
+def(0xEE, 'XOR n', 8, (cpu) => {
+  const value = cpu.readPC();
+  cpu.registers.a = to8Bit(cpu.registers.a ^ value);
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(false);
+  cpu.registers.setHalfCarryFlag(false);
+  cpu.registers.setCarryFlag(false);
+  return 8;
+});
+
+def(0xF6, 'OR n', 8, (cpu) => {
+  const value = cpu.readPC();
+  cpu.registers.a = to8Bit(cpu.registers.a | value);
+  cpu.updateZeroFlag(cpu.registers.a);
+  cpu.updateSubtractFlag(false);
+  cpu.registers.setHalfCarryFlag(false);
+  cpu.registers.setCarryFlag(false);
+  return 8;
+});
+
+def(0xE9, 'JP (HL)', 4, (cpu) => {
+  cpu.registers.pc = cpu.registers.getHL();
+  return 4;
+});
+
+def(0xF9, 'LD SP, HL', 8, (cpu) => {
+  cpu.registers.sp = cpu.registers.getHL();
+  return 8;
+});
+
+def(0xC7, 'RST 00H', 16, (cpu) => {
+  cpu.pushStack(cpu.registers.pc);
+  cpu.registers.pc = 0x00;
+  return 16;
+});
+
+def(0xCF, 'RST 08H', 16, (cpu) => {
+  cpu.pushStack(cpu.registers.pc);
+  cpu.registers.pc = 0x08;
+  return 16;
+});
+
+def(0xD7, 'RST 10H', 16, (cpu) => {
+  cpu.pushStack(cpu.registers.pc);
+  cpu.registers.pc = 0x10;
+  return 16;
+});
+
+def(0xDF, 'RST 18H', 16, (cpu) => {
+  cpu.pushStack(cpu.registers.pc);
+  cpu.registers.pc = 0x18;
+  return 16;
+});
+
+def(0xE7, 'RST 20H', 16, (cpu) => {
+  cpu.pushStack(cpu.registers.pc);
+  cpu.registers.pc = 0x20;
+  return 16;
+});
+
+def(0xEF, 'RST 28H', 16, (cpu) => {
+  cpu.pushStack(cpu.registers.pc);
+  cpu.registers.pc = 0x28;
+  return 16;
+});
+
+def(0xF7, 'RST 30H', 16, (cpu) => {
+  cpu.pushStack(cpu.registers.pc);
+  cpu.registers.pc = 0x30;
+  return 16;
+});
+
+def(0xFF, 'RST 38H', 16, (cpu) => {
+  cpu.pushStack(cpu.registers.pc);
+  cpu.registers.pc = 0x38;
+  return 16;
+});

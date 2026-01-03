@@ -1,5 +1,4 @@
 import { Cartridge } from './cartridge';
-import { NoMBC } from './mbcs/NoMBC';
 import { logger } from '@/utils/logger';
 
 /**
@@ -30,8 +29,8 @@ export class MMU {
   // Interrupt Enable register
   private interruptEnable: number = 0;
 
-  // Memory Bank Controller
-  private mbc: NoMBC | null = null;
+  // Cartridge (contains MBC internally)
+  private cartridge: Cartridge | null = null;
 
   constructor() {
     this.vram = new Uint8Array(0x2000);  // 8KB
@@ -48,9 +47,7 @@ export class MMU {
    * Load a cartridge into memory
    */
   loadCartridge(cartridge: Cartridge): void {
-    // For now, only support ROM-only cartridges
-    // In Phase 9, we'll add MBC1, MBC3, MBC5 support
-    this.mbc = new NoMBC(cartridge);
+    this.cartridge = cartridge;
     logger.info('Cartridge loaded into MMU');
   }
 
@@ -60,13 +57,22 @@ export class MMU {
   read(address: number): number {
     const addr = address & 0xFFFF; // Ensure 16-bit address
 
-    // ROM Bank 0 & 1 (0x0000-0x7FFF)
-    if (addr < 0x8000) {
-      if (!this.mbc) {
+    // ROM Bank 0 (0x0000-0x3FFF)
+    if (addr < 0x4000) {
+      if (!this.cartridge) {
         logger.error('Attempted to read ROM but no cartridge loaded');
         return 0xFF;
       }
-      return this.mbc.readROM(addr);
+      return this.cartridge.readROMBank0(addr);
+    }
+
+    // ROM Bank 1-N (0x4000-0x7FFF)
+    if (addr >= 0x4000 && addr < 0x8000) {
+      if (!this.cartridge) {
+        logger.error('Attempted to read ROM but no cartridge loaded');
+        return 0xFF;
+      }
+      return this.cartridge.readROMBank1(addr - 0x4000);
     }
 
     // VRAM (0x8000-0x9FFF)
@@ -76,10 +82,10 @@ export class MMU {
 
     // External RAM (0xA000-0xBFFF)
     if (addr >= 0xA000 && addr < 0xC000) {
-      if (!this.mbc) {
+      if (!this.cartridge) {
         return 0xFF;
       }
-      return this.mbc.readRAM(addr);
+      return this.cartridge.readRAM(addr - 0xA000);
     }
 
     // Work RAM (0xC000-0xDFFF)
@@ -128,10 +134,10 @@ export class MMU {
     const addr = address & 0xFFFF;
     const val = value & 0xFF;
 
-    // ROM Bank 0 & 1 (0x0000-0x7FFF) - passed to MBC
+    // ROM area (0x0000-0x7FFF) - MBC control registers
     if (addr < 0x8000) {
-      if (this.mbc) {
-        this.mbc.writeROM(addr, val);
+      if (this.cartridge) {
+        this.cartridge.writeControl(addr, val);
       }
       return;
     }
@@ -144,8 +150,8 @@ export class MMU {
 
     // External RAM (0xA000-0xBFFF)
     if (addr >= 0xA000 && addr < 0xC000) {
-      if (this.mbc) {
-        this.mbc.writeRAM(addr, val);
+      if (this.cartridge) {
+        this.cartridge.writeRAM(addr - 0xA000, val);
       }
       return;
     }
