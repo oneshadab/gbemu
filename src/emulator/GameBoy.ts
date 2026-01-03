@@ -1,6 +1,7 @@
 import { MMU } from '@/core/memory/MMU';
 import { CPU } from '@/core/cpu/CPU';
 import { PPU } from '@/core/ppu/PPU';
+import { Timer } from '@/core/timer/Timer';
 import { Cartridge } from '@/core/memory/cartridge';
 import { logger } from '@/utils/logger';
 
@@ -13,6 +14,7 @@ export class GameBoy {
   mmu: MMU;
   cpu: CPU;
   ppu: PPU;
+  timer: Timer;
 
   // State
   private loaded: boolean = false;
@@ -27,6 +29,7 @@ export class GameBoy {
     this.mmu = new MMU();
     this.cpu = new CPU(this.mmu);
     this.ppu = new PPU(this.mmu);
+    this.timer = new Timer(this.mmu);
 
     logger.info('GameBoy emulator initialized');
   }
@@ -54,6 +57,7 @@ export class GameBoy {
   reset(): void {
     this.cpu.reset();
     this.ppu.reset();
+    this.timer.reset();
     this.frameCount = 0;
     this.fps = 0;
 
@@ -78,8 +82,8 @@ export class GameBoy {
       // Update PPU with same number of cycles
       this.ppu.step(cpuCycles);
 
-      // TODO: Update Timer (Phase 6)
-      // this.timer.step(cpuCycles);
+      // Update Timer
+      this.timer.step(cpuCycles);
 
       cyclesThisFrame += cpuCycles;
     }
@@ -104,7 +108,7 @@ export class GameBoy {
 
     const cycles = this.cpu.step();
     this.ppu.step(cycles);
-    // TODO: this.timer.step(cycles);
+    this.timer.step(cycles);
 
     return cycles;
   }

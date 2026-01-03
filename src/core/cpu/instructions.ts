@@ -345,6 +345,13 @@ def(0xCD, 'CALL nn', 24, (cpu) => {
   return 24;
 });
 
+// 0xD9: RETI (Return from interrupt)
+def(0xD9, 'RETI', 16, (cpu) => {
+  cpu.registers.pc = cpu.popStack();
+  cpu.ime = true; // Re-enable interrupts
+  return 16;
+});
+
 // 0xE0: LD (0xFF00+n), A
 def(0xE0, 'LD (FF00+n), A', 12, (cpu) => {
   const offset = cpu.readPC();
