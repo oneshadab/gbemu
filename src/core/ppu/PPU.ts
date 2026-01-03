@@ -10,8 +10,16 @@ import {
   LCDC_BG_TILEMAP,
   LCDC_BG_WIN_TILES,
   LCDC_BG_ENABLE,
+  LCDC_OBJ_ENABLE,
+  LCDC_OBJ_SIZE,
   INT_VBLANK,
   DMG_COLORS,
+  OAM_BASE,
+  MAX_SPRITES_PER_LINE,
+  OBJ_PRIORITY,
+  OBJ_FLIP_Y,
+  OBJ_FLIP_X,
+  OBJ_PALETTE,
 } from './constants';
 import { logger } from '@/utils/logger';
 import { getBit } from '@/utils/bits';
@@ -145,6 +153,11 @@ export class PPU {
     if (getBit(lcdc, LCDC_BG_ENABLE)) {
       this.renderBackground();
     }
+
+    // Check if sprites are enabled
+    if (getBit(lcdc, LCDC_OBJ_ENABLE)) {
+      this.renderSprites();
+    }
   }
 
   /**
@@ -214,6 +227,136 @@ export class PPU {
       this.framebuffer[fbIndex + 1] = color[1]; // G
       this.framebuffer[fbIndex + 2] = color[2]; // B
       this.framebuffer[fbIndex + 3] = 255;      // A
+    }
+  }
+
+  /**
+   * Render sprites for current scanline
+   */
+  private renderSprites(): void {
+    const lcdc = this.mmu.getIO(0x40);
+    const spriteHeight = getBit(lcdc, LCDC_OBJ_SIZE) ? 16 : 8;
+
+    // Sprite data structure:
+    // Byte 0: Y position (minus 16)
+    // Byte 1: X position (minus 8)
+    // Byte 2: Tile number
+    // Byte 3: Attributes/flags
+
+    // Collect sprites that are visible on this scanline
+    interface Sprite {
+      x: number;
+      y: number;
+      tile: number;
+      flags: number;
+      oamIndex: number;
+    }
+
+    const spritesOnLine: Sprite[] = [];
+
+    // Scan OAM for sprites on this line
+    for (let i = 0; i < 40; i++) {
+      const oamAddr = OAM_BASE + (i * 4);
+      const y = this.mmu.read(oamAddr) - 16;
+      const x = this.mmu.read(oamAddr + 1) - 8;
+      const tile = this.mmu.read(oamAddr + 2);
+      const flags = this.mmu.read(oamAddr + 3);
+
+      // Check if sprite is on this scanline
+      if (this.line >= y && this.line < y + spriteHeight) {
+        spritesOnLine.push({ x, y, tile, flags, oamIndex: i });
+
+        // Limit to 10 sprites per scanline
+        if (spritesOnLine.length >= MAX_SPRITES_PER_LINE) {
+          break;
+        }
+      }
+    }
+
+    // Sort sprites by X coordinate (lower X = higher priority in case of overlap)
+    // On real hardware, sprites earlier in OAM have priority, but we already limited
+    // collection to first 10, so just reverse to draw in correct order
+    spritesOnLine.reverse();
+
+    // Get sprite palettes
+    const obp0 = this.mmu.getIO(0x48); // OBP0
+    const obp1 = this.mmu.getIO(0x49); // OBP1
+
+    // Render each sprite
+    for (const sprite of spritesOnLine) {
+      const { x, y, tile, flags } = sprite;
+
+      // Get sprite attributes
+      const priority = getBit(flags, OBJ_PRIORITY);
+      const flipY = getBit(flags, OBJ_FLIP_Y);
+      const flipX = getBit(flags, OBJ_FLIP_X);
+      const palette = getBit(flags, OBJ_PALETTE) ? obp1 : obp0;
+
+      // Calculate which row of the sprite to render
+      let spriteRow = this.line - y;
+      if (flipY) {
+        spriteRow = (spriteHeight - 1) - spriteRow;
+      }
+
+      // Get tile data address (sprites always use 0x8000 addressing)
+      let tileNum = tile;
+      if (spriteHeight === 16) {
+        // In 8x16 mode, bit 0 is ignored
+        tileNum = tile & 0xFE;
+        // If we're in the bottom half, use next tile
+        if (spriteRow >= 8) {
+          tileNum |= 0x01;
+          spriteRow -= 8;
+        }
+      }
+
+      const tileDataAddress = 0x8000 + (tileNum * 16) + (spriteRow * 2);
+      const byte1 = this.mmu.read(tileDataAddress);
+      const byte2 = this.mmu.read(tileDataAddress + 1);
+
+      // Render each pixel in the sprite
+      for (let px = 0; px < 8; px++) {
+        const screenX = x + px;
+
+        // Skip if off screen
+        if (screenX < 0 || screenX >= SCREEN_WIDTH) {
+          continue;
+        }
+
+        // Calculate bit position (handle horizontal flip)
+        const bitPosition = flipX ? px : (7 - px);
+        const colorBit0 = (byte1 >> bitPosition) & 1;
+        const colorBit1 = (byte2 >> bitPosition) & 1;
+        const colorIndex = (colorBit1 << 1) | colorBit0;
+
+        // Color 0 is transparent for sprites
+        if (colorIndex === 0) {
+          continue;
+        }
+
+        // Check priority
+        if (priority) {
+          // Sprite is behind background colors 1-3
+          // Check if background pixel is not color 0
+          const fbIndex = (this.line * SCREEN_WIDTH + screenX) * 4;
+          const bgColor = this.framebuffer[fbIndex];
+          // If background is not the lightest color (not transparent), skip sprite pixel
+          if (bgColor !== DMG_COLORS[0][0]) {
+            continue;
+          }
+        }
+
+        // Apply palette
+        const paletteColor = (palette >> (colorIndex * 2)) & 0x03;
+        const color = DMG_COLORS[paletteColor];
+
+        // Write to framebuffer
+        const fbIndex = (this.line * SCREEN_WIDTH + screenX) * 4;
+        this.framebuffer[fbIndex] = color[0];     // R
+        this.framebuffer[fbIndex + 1] = color[1]; // G
+        this.framebuffer[fbIndex + 2] = color[2]; // B
+        this.framebuffer[fbIndex + 3] = 255;      // A
+      }
     }
   }
 

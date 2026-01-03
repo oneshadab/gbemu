@@ -45,6 +45,18 @@ export const STAT_MODE_MASK = 0x03;    // Current mode (bits 0-1)
 export const INT_VBLANK = 0;
 export const INT_STAT = 1;
 
+// Sprite (OBJ) constants
+export const OAM_BASE = 0xFE00;
+export const OAM_SIZE = 160; // 40 sprites * 4 bytes each
+export const MAX_SPRITES = 40;
+export const MAX_SPRITES_PER_LINE = 10;
+
+// Sprite attribute flags (byte 3 of OAM entry)
+export const OBJ_PRIORITY = 7;    // 0=Above BG, 1=Behind BG colors 1-3
+export const OBJ_FLIP_Y = 6;      // Vertical flip
+export const OBJ_FLIP_X = 5;      // Horizontal flip
+export const OBJ_PALETTE = 4;     // Palette (0=OBP0, 1=OBP1)
+
 // DMG Palette colors (shades of green)
 export const DMG_COLORS = [
   [0x9B, 0xBC, 0x0F],  // Lightest
