@@ -15,7 +15,7 @@ export class CPU {
   ime: boolean = false; // Interrupt Master Enable
 
   // Interrupt enable delay (EI instruction enables interrupts after next instruction)
-  private imeScheduled: boolean = false;
+  imeScheduled: boolean = false;
 
   constructor(mmu: MMU) {
     this.registers = new Registers();
@@ -190,6 +190,10 @@ export class CPU {
 
   updateCarryFlag(value: number): void {
     this.registers.setCarryFlag(value > 0xFF);
+  }
+
+  updateCarryFlagAdd(a: number, b: number): void {
+    this.registers.setCarryFlag((a + b) > 0xFF);
   }
 
   updateCarryFlagSubtract(a: number, b: number): void {
