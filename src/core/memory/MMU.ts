@@ -297,13 +297,28 @@ export class MMU {
       case 0xFF44: // LY - read-only, ignore writes
         break;
 
-      case 0xFF46: // DMA - will be handled in PPU phase
+      case 0xFF46: // DMA - OAM DMA transfer
         this.io[offset] = value;
-        // TODO: Trigger DMA transfer
+        this.performDMATransfer(value);
         break;
 
       default:
         this.io[offset] = value;
+    }
+  }
+
+  /**
+   * Perform DMA transfer to OAM
+   * Copies 160 bytes from XX00-XX9F to OAM (0xFE00-0xFE9F)
+   * where XX is the value written to 0xFF46
+   */
+  private performDMATransfer(value: number): void {
+    const sourceBase = value << 8; // Source address is XX00
+
+    // Copy 160 bytes (0xA0) to OAM
+    for (let i = 0; i < 0xA0; i++) {
+      const sourceByte = this.read(sourceBase + i);
+      this.oam[i] = sourceByte;
     }
   }
 

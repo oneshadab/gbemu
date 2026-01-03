@@ -187,6 +187,62 @@ console.log('✅ Emulator ready');
 
     return { unimplemented: Array.from(unimplemented), locations: Object.fromEntries(pcWhenFound) };
   },
+  checkSprites: () => {
+    const lcdc = gameboy.mmu.getIO(0x40);
+    const spritesEnabled = !!(lcdc & 0x02);
+    console.log('LCDC:', '0x' + lcdc.toString(16).padStart(2, '0'));
+    console.log('Sprites enabled:', spritesEnabled);
+    console.log('OBP0:', '0x' + gameboy.mmu.getIO(0x48).toString(16).padStart(2, '0'));
+    console.log('OBP1:', '0x' + gameboy.mmu.getIO(0x49).toString(16).padStart(2, '0'));
+
+    console.log('\nFirst 10 sprites in OAM:');
+    for (let i = 0; i < 10; i++) {
+      const addr = 0xFE00 + (i * 4);
+      const y = gameboy.mmu.read(addr);
+      const x = gameboy.mmu.read(addr + 1);
+      const tile = gameboy.mmu.read(addr + 2);
+      const flags = gameboy.mmu.read(addr + 3);
+
+      if (y !== 0 || x !== 0) {
+        console.log(`  Sprite ${i}: Y=${y} (${y-16}), X=${x} (${x-8}), Tile=0x${tile.toString(16).padStart(2, '0')}, Flags=0x${flags.toString(16).padStart(2, '0')}`);
+      }
+    }
+  },
+  monitorExecution: (maxFrames: number = 10) => {
+    // Monitor where the CPU is spending time
+    const pcCounts = new Map<number, number>();
+    const totalFrames = maxFrames;
+
+    for (let frame = 0; frame < totalFrames; frame++) {
+      // Run one frame
+      const frameCycles = 70224;
+      let cyclesThisFrame = 0;
+
+      while (cyclesThisFrame < frameCycles) {
+        const pc = gameboy.cpu.registers.pc;
+        pcCounts.set(pc, (pcCounts.get(pc) || 0) + 1);
+
+        const cycles = gameboy.cpu.step();
+        gameboy.ppu.step(cycles);
+        gameboy.timer.step(cycles);
+
+        cyclesThisFrame += cycles;
+      }
+    }
+
+    // Find hot spots (most executed addresses)
+    const sorted = Array.from(pcCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10);
+
+    console.log(`\nTop 10 most executed addresses over ${totalFrames} frames:`);
+    sorted.forEach(([pc, count]) => {
+      const opcode = gameboy.mmu.read(pc);
+      console.log(`  0x${pc.toString(16).padStart(4, '0')}: ${count.toString().padStart(6)} executions (opcode: 0x${opcode.toString(16).padStart(2, '0')})`);
+    });
+
+    return sorted;
+  },
   disassemble: (addr: number, count: number = 10) => {
     // Disassemble instructions at a given address
     const opcodeNames: { [key: number]: string } = {
