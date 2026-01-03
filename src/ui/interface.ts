@@ -168,9 +168,12 @@ export class UIController {
       // Run one frame
       this.gameboy.frame();
 
-      // Render if frame is ready
+      // Always render the current framebuffer (even if frame isn't complete)
+      // This ensures we see something on screen even during partial frames
+      this.renderer.drawFrame(this.gameboy.getFramebuffer());
+
+      // Clear frame ready flag if it was set
       if (this.gameboy.isFrameReady()) {
-        this.renderer.drawFrame(this.gameboy.getFramebuffer());
         this.gameboy.consumeFrame();
       }
 

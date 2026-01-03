@@ -22,7 +22,10 @@ export class NoMBC implements MemoryBankController {
       logger.warn(`NoMBC: Invalid address for bank 0: 0x${address.toString(16)}`);
       return 0xFF;
     }
-    return this.rom[address] || 0xFF;
+    if (address >= this.rom.length) {
+      return 0xFF;
+    }
+    return this.rom[address];
   }
 
   /**

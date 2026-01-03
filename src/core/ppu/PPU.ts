@@ -72,64 +72,94 @@ export class PPU {
    * Step PPU by given number of CPU cycles
    */
   step(cpuCycles: number): void {
-    this.cycles += cpuCycles;
-
     // Check if LCD is enabled
     const lcdc = this.mmu.getIO(0x40);
-    if (!getBit(lcdc, LCDC_ENABLE)) {
+    const lcdEnabled = getBit(lcdc, LCDC_ENABLE);
+
+    // If LCD is disabled, reset PPU state and don't process
+    if (!lcdEnabled) {
+      // When LCD is disabled, LY is reset to 0 and PPU stops
+      if (this.line !== 0 || this.mode !== LCDMode.OAM_SCAN) {
+        this.line = 0;
+        this.cycles = 0;
+        this.mode = LCDMode.OAM_SCAN;
+        this.mmu.setIO(0x44, 0);
+      }
       return;
     }
 
-    // Update LY register
-    this.mmu.setIO(0x44, this.line);
+    // Accumulate cycles
+    this.cycles += cpuCycles;
 
-    // State machine
-    switch (this.mode) {
-      case LCDMode.OAM_SCAN:
-        if (this.cycles >= OAM_SCAN_CYCLES) {
-          this.cycles -= OAM_SCAN_CYCLES;
-          this.setMode(LCDMode.DRAWING);
-        }
-        break;
+    // Process state machine until all cycles are consumed
+    // This ensures we process multiple state transitions if many cycles accumulated
+    let maxIterations = 1000; // Safety limit to prevent infinite loops
+    
+    while (this.cycles > 0 && maxIterations > 0) {
+      maxIterations--;
 
-      case LCDMode.DRAWING:
-        if (this.cycles >= DRAWING_CYCLES) {
-          this.cycles -= DRAWING_CYCLES;
-          this.renderScanline();
-          this.setMode(LCDMode.HBLANK);
-        }
-        break;
+      // Update LY register
+      this.mmu.setIO(0x44, this.line);
 
-      case LCDMode.HBLANK:
-        if (this.cycles >= HBLANK_CYCLES) {
-          this.cycles -= HBLANK_CYCLES;
-          this.line++;
+      let stateChanged = false;
 
-          if (this.line >= SCREEN_HEIGHT) {
-            // Enter VBlank
-            this.setMode(LCDMode.VBLANK);
-            this.requestInterrupt(INT_VBLANK);
-            this.frameReady = true;
-          } else {
-            // Next scanline
-            this.setMode(LCDMode.OAM_SCAN);
+      // State machine
+      switch (this.mode) {
+        case LCDMode.OAM_SCAN:
+          if (this.cycles >= OAM_SCAN_CYCLES) {
+            this.cycles -= OAM_SCAN_CYCLES;
+            this.setMode(LCDMode.DRAWING);
+            stateChanged = true;
           }
-        }
-        break;
+          break;
 
-      case LCDMode.VBLANK:
-        if (this.cycles >= 456) { // One scanline worth of cycles
-          this.cycles -= 456;
-          this.line++;
-
-          if (this.line > 153) {
-            // Frame complete, restart
-            this.line = 0;
-            this.frameReady = false; // Reset frame ready flag for new frame
-            this.setMode(LCDMode.OAM_SCAN);
+        case LCDMode.DRAWING:
+          if (this.cycles >= DRAWING_CYCLES) {
+            this.cycles -= DRAWING_CYCLES;
+            this.renderScanline();
+            this.setMode(LCDMode.HBLANK);
+            stateChanged = true;
           }
-        }
+          break;
+
+        case LCDMode.HBLANK:
+          if (this.cycles >= HBLANK_CYCLES) {
+            this.cycles -= HBLANK_CYCLES;
+            this.line++;
+
+            if (this.line >= SCREEN_HEIGHT) {
+              // Enter VBlank
+              this.setMode(LCDMode.VBLANK);
+              this.requestInterrupt(INT_VBLANK);
+              this.frameReady = true;
+            } else {
+              // Next scanline
+              this.setMode(LCDMode.OAM_SCAN);
+            }
+            stateChanged = true;
+          }
+          break;
+
+        case LCDMode.VBLANK:
+          if (this.cycles >= 456) { // One scanline worth of cycles
+            this.cycles -= 456;
+            this.line++;
+
+            if (this.line > 153) {
+              // Frame complete, restart
+              this.line = 0;
+              this.frameReady = false; // Reset frame ready flag for new frame
+              this.setMode(LCDMode.OAM_SCAN);
+            }
+            stateChanged = true;
+          }
+          break;
+      }
+
+      // If no state change occurred, we don't have enough cycles yet
+      if (!stateChanged) {
         break;
+      }
     }
   }
 
@@ -153,6 +183,16 @@ export class PPU {
     // Check if background is enabled
     if (getBit(lcdc, LCDC_BG_ENABLE)) {
       this.renderBackground();
+    } else {
+      // If background is disabled, fill scanline with darkest color
+      const color = DMG_COLORS[3];
+      for (let x = 0; x < SCREEN_WIDTH; x++) {
+        const fbIndex = (this.line * SCREEN_WIDTH + x) * 4;
+        this.framebuffer[fbIndex] = color[0];
+        this.framebuffer[fbIndex + 1] = color[1];
+        this.framebuffer[fbIndex + 2] = color[2];
+        this.framebuffer[fbIndex + 3] = 255;
+      }
     }
 
     // Check if sprites are enabled
