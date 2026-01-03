@@ -2,6 +2,7 @@ import { logger } from '@/utils/logger';
 import { MemoryBankController } from './mbcs/types';
 import { NoMBC } from './mbcs/NoMBC';
 import { MBC1 } from './mbcs/MBC1';
+import { MBC3 } from './mbcs/MBC3';
 
 /**
  * Cartridge types (based on byte 0x0147)
@@ -79,6 +80,11 @@ export class Cartridge {
       case CartridgeType.MBC1_RAM:
       case CartridgeType.MBC1_RAM_BATTERY:
         return new MBC1(this.rom, this.ramSize);
+
+      case CartridgeType.MBC3:
+      case CartridgeType.MBC3_RAM:
+      case CartridgeType.MBC3_RAM_BATTERY:
+        return new MBC3(this.rom, this.ramSize);
 
       default:
         logger.warn(`Unsupported cartridge type 0x${this.type.toString(16)}, using NoMBC`);
