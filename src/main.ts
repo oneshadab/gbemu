@@ -1,62 +1,25 @@
-// GameBoy Emulator - Main Entry Point
+import { GameBoy } from '@/emulator/GameBoy';
+import { DisplayManager } from '@/ui/display';
+import { UIController } from '@/ui/interface';
+import { logger, LogLevel } from '@/utils/logger';
+
+// Configure logging
+logger.setLevel(LogLevel.INFO);
+
 console.log('🎮 GameBoy Emulator Starting...');
 
-// Initialize canvas
-const canvas = document.getElementById('display') as HTMLCanvasElement;
-const ctx = canvas.getContext('2d');
+// Initialize display
+const displayManager = new DisplayManager('display', 3);
+const renderer = displayManager.getRenderer();
 
-if (!ctx) {
-  throw new Error('Could not get canvas context');
-}
+// Initialize emulator
+const gameboy = new GameBoy();
 
-// Fill canvas with GameBoy green as a test
-ctx.fillStyle = '#0f380f';
-ctx.fillRect(0, 0, 160, 144);
+// Initialize UI controller
+const ui = new UIController(gameboy, renderer);
 
-// Test pattern: white square in center
-ctx.fillStyle = '#9bbc0f';
-ctx.fillRect(60, 52, 40, 40);
+console.log('✅ Emulator ready');
 
-console.log('✅ Canvas initialized');
-
-// ROM file loading
-const romFileInput = document.getElementById('rom-file') as HTMLInputElement;
-const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
-const pauseBtn = document.getElementById('pause-btn') as HTMLButtonElement;
-const statusDiv = document.getElementById('status') as HTMLElement;
-
-romFileInput.addEventListener('change', async (event) => {
-  const file = (event.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const romData = new Uint8Array(arrayBuffer);
-
-    console.log(`📦 ROM loaded: ${file.name} (${romData.length} bytes)`);
-    statusDiv.textContent = `Loaded: ${file.name}`;
-    statusDiv.className = 'status ready';
-
-    // Enable buttons
-    resetBtn.disabled = false;
-    pauseBtn.disabled = false;
-
-    // TODO: Load ROM into emulator
-  } catch (error) {
-    console.error('❌ Error loading ROM:', error);
-    statusDiv.textContent = 'Error loading ROM';
-    statusDiv.className = 'status error';
-  }
-});
-
-resetBtn.addEventListener('click', () => {
-  console.log('🔄 Reset requested');
-  // TODO: Reset emulator
-});
-
-pauseBtn.addEventListener('click', () => {
-  console.log('⏸️ Pause/Resume requested');
-  // TODO: Toggle pause
-});
-
-console.log('✅ UI event handlers registered');
+// Expose for debugging
+(window as any).gameboy = gameboy;
+(window as any).logger = logger;
