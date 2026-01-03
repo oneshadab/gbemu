@@ -31,7 +31,7 @@ export class PPU {
   framebuffer: Uint8ClampedArray;
 
   // PPU state
-  private mode: LCDMode = LCDMode.OAM_SCAN;
+  mode: LCDMode = LCDMode.OAM_SCAN; // Made public for MMU access restrictions
   private cycles: number = 0;
   private line: number = 0;  // Current scanline (LY register)
 
@@ -226,8 +226,10 @@ export class PPU {
       let tileDataAddress: number;
       if (useSigned) {
         // Signed tile numbers (-128 to 127)
+        // In signed mode, tile 0 is at 0x9000, not 0x8800
+        // Tile -128 is at 0x8800, tile 0 is at 0x9000, tile 127 is at 0x97F0
         const signedTileNum = tileNum > 127 ? tileNum - 256 : tileNum;
-        tileDataAddress = tileDataBase + (signedTileNum * 16);
+        tileDataAddress = 0x9000 + (signedTileNum * 16);
       } else {
         // Unsigned tile numbers (0-255)
         tileDataAddress = tileDataBase + (tileNum * 16);

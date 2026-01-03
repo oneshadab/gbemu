@@ -47,8 +47,9 @@ export class MBC3 implements MemoryBankController {
    * Read from switchable ROM bank (0x4000-0x7FFF)
    */
   readROMBank1(address: number): number {
-    // Use current ROM bank (1-127)
+    // Apply the same masking approach as MBC1
     const bank = this.romBank & (this.romBankCount - 1);
+    
     const romAddress = bank * 0x4000 + address;
     return this.rom[romAddress];
   }
@@ -68,7 +69,7 @@ export class MBC3 implements MemoryBankController {
     }
 
     // Normal RAM access
-    const bank = this.ramBank & (this.ramBankCount - 1);
+    const bank = this.ramBank & 0x03; // Only 2 bits for RAM bank (0-3)
     const ramAddress = bank * 0x2000 + address;
     return this.ram[ramAddress];
   }
@@ -88,7 +89,7 @@ export class MBC3 implements MemoryBankController {
     }
 
     // Normal RAM write
-    const bank = this.ramBank & (this.ramBankCount - 1);
+    const bank = this.ramBank & 0x03; // Only 2 bits for RAM bank (0-3)
     const ramAddress = bank * 0x2000 + address;
     this.ram[ramAddress] = value;
   }
@@ -105,9 +106,9 @@ export class MBC3 implements MemoryBankController {
     else if (address >= 0x2000 && address <= 0x3FFF) {
       // ROM Bank Number (7 bits)
       this.romBank = value & 0x7F;
-
-      // Bank 0x00 can't be selected, translate to 0x01
-      if (this.romBank === 0x00) {
+      
+      // If bank 0 is selected, convert to bank 1
+      if (this.romBank === 0) {
         this.romBank = 0x01;
       }
     }

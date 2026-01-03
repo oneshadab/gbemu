@@ -37,6 +37,7 @@ export class GameBoy {
     // Wire up components to MMU so they receive register write notifications
     this.mmu.setTimer(this.timer);
     this.mmu.setJoypad(this.joypad);
+    this.mmu.setPPU(this.ppu); // Connect PPU for VRAM/OAM access restrictions
 
     logger.info('GameBoy emulator initialized');
   }

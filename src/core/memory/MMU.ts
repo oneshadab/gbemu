@@ -37,6 +37,9 @@ export class MMU {
 
   // Joypad reference (set after construction)
   private joypad: any = null;
+  
+  // PPU reference (set after construction) - needed for VRAM/OAM access restrictions
+  private ppu: any = null;
 
   constructor() {
     this.vram = new Uint8Array(0x2000);  // 8KB
@@ -61,6 +64,13 @@ export class MMU {
    */
   setJoypad(joypad: any): void {
     this.joypad = joypad;
+  }
+  
+  /**
+   * Set PPU reference (called after PPU is constructed)
+   */
+  setPPU(ppu: any): void {
+    this.ppu = ppu;
   }
 
   /**
