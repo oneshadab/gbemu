@@ -37,6 +37,9 @@ export class UIController {
     this.statusDiv = document.getElementById('status') as HTMLElement;
     this.fpsDisplay = document.getElementById('fps');
 
+    // Clear canvas initially
+    this.renderer.clear();
+
     this.setupEventListeners();
   }
 
@@ -83,6 +86,9 @@ export class UIController {
       // Enable buttons
       this.resetBtn.disabled = false;
       this.pauseBtn.disabled = false;
+
+      // Render initial framebuffer (cleared to dark green)
+      this.renderer.drawFrame(this.gameboy.getFramebuffer());
 
       // Start emulation
       this.start();

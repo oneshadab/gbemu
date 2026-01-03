@@ -125,6 +125,7 @@ export class PPU {
           if (this.line > 153) {
             // Frame complete, restart
             this.line = 0;
+            this.frameReady = false; // Reset frame ready flag for new frame
             this.setMode(LCDMode.OAM_SCAN);
           }
         }
