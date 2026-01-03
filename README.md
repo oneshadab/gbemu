@@ -8,31 +8,28 @@ A fully functional GameBoy (DMG) emulator written in TypeScript that runs in the
 
 ## ✨ Features
 
-- **Full CPU Emulation**: Sharp LR35902 CPU with complete instruction set (512 opcodes)
+- **Full CPU Emulation**: Sharp LR35902 CPU with complete instruction set (256 unprefixed + 256 CB-prefixed opcodes)
 - **Graphics**: Background and sprite rendering with accurate PPU timing
 - **Input**: Keyboard controls mapped to GameBoy buttons
 - **Timer**: Accurate timer and interrupt handling
-- **Memory Banking**: MBC1 support for games up to 2MB
+- **Memory Banking**: MBC1 support for games with ROM banking
 - **Performance**: Runs at 60 FPS with cycle-accurate emulation
 - **Web-Based**: No installation needed - runs directly in your browser
 
 ## 🎯 Compatibility
 
-The emulator supports:
+The emulator currently supports:
 - ✅ ROM-only cartridges (32KB)
-- ✅ MBC1 cartridges (up to 2MB ROM, 32KB RAM)
-- ✅ ~90% of the original GameBoy library
+- ✅ MBC1 cartridges (with ROM banking)
+- 🚧 Additional MBC types coming soon
 
 ### Tested Games
 
 | Game | Status | Notes |
 |------|--------|-------|
-| Tetris | ✅ Perfect | Fully playable |
-| Super Mario Land | ✅ Perfect | Fully playable |
-| Dr. Mario | ✅ Perfect | Fully playable |
-| Pokémon Red/Blue | ✅ Perfect | Fully playable with saves |
-| Kirby's Dream Land | ✅ Perfect | Fully playable |
-| Legend of Zelda: Link's Awakening | ✅ Perfect | Fully playable |
+| Tetris | ✅ Tested | ROM-only cartridge |
+
+> **Note**: This emulator is actively under development. More games will be tested and compatibility will improve over time.
 
 ## 🚀 Quick Start
 
@@ -55,7 +52,7 @@ npm install
 npm run dev
 ```
 
-The emulator will open in your browser at `http://localhost:3000`
+The emulator will open in your browser at `http://localhost:5173` (default Vite port)
 
 ### Loading a ROM
 
@@ -151,7 +148,7 @@ gbemu/
 │   ├── ui/                   # User interface
 │   │   ├── interface.ts      # UI controls
 │   │   ├── display.ts        # Display management
-│   │   └── input.ts          # Keyboard handling
+│   │   └── InputManager.ts   # Keyboard handling
 │   ├── utils/                # Utilities
 │   │   ├── bits.ts           # Bit manipulation
 │   │   └── logger.ts         # Logging
@@ -184,8 +181,8 @@ npm run preview
 # Run tests
 npm test
 
-# Type checking
-npm run type-check
+# Run tests with UI
+npm run test:ui
 
 # Lint code
 npm run lint
@@ -212,10 +209,10 @@ Each phase includes complete code samples, verification steps, and troubleshooti
 
 ### Test ROMs
 
-The emulator has been tested with:
-- **Blargg's CPU Tests**: cpu_instrs.gb ✅
-- **dmg-acid2**: PPU rendering test ✅
-- **Real Games**: Tetris, Pokémon, Mario, Zelda ✅
+The emulator is being tested with:
+- ✅ **Tetris**: Fully playable
+- 🚧 **Blargg's CPU Tests**: In progress
+- 🚧 **Additional Test ROMs**: Coming soon
 
 ### Running Tests
 
@@ -223,8 +220,8 @@ The emulator has been tested with:
 # Run unit tests
 npm test
 
-# Run with coverage
-npm run test:coverage
+# Run tests with UI
+npm run test:ui
 ```
 
 ## 📊 Performance
@@ -270,12 +267,13 @@ npm run test:coverage
 
 ## 🐛 Known Issues
 
-- MBC3/MBC5 not yet supported
+- MBC2/MBC3/MBC5 not yet implemented
 - No audio emulation (APU not implemented)
-- Some edge cases in PPU timing may cause minor glitches
 - Save states not implemented
+- External RAM (cartridge saves) not persisted
+- Some edge cases in PPU timing may need refinement
 
-## 🚧 Future Enhancements
+## 🚧 Roadmap
 
 - [ ] Audio (APU) emulation
 - [ ] Save states
