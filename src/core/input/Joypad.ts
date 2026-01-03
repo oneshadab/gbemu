@@ -80,7 +80,7 @@ export class Joypad {
    * Update the joypad register (0xFF00) based on current button states
    */
   updateJoypadRegister(): void {
-    const p1 = this.mmu.read(0xFF00);
+    const p1 = this.mmu.getIO(0x00);
 
     // Get selection bits
     const selectButtons = (p1 & 0x20) === 0; // Bit 5
@@ -109,7 +109,7 @@ export class Joypad {
       result |= 0x0F;
     }
 
-    this.mmu.write(0xFF00, result);
+    this.mmu.setIO(0x00, result);
   }
 
   /**

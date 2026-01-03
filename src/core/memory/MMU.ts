@@ -35,6 +35,9 @@ export class MMU {
   // Timer reference (set after construction)
   private timer: any = null;
 
+  // Joypad reference (set after construction)
+  private joypad: any = null;
+
   constructor() {
     this.vram = new Uint8Array(0x2000);  // 8KB
     this.wram = new Uint8Array(0x2000);  // 8KB
@@ -51,6 +54,13 @@ export class MMU {
    */
   setTimer(timer: any): void {
     this.timer = timer;
+  }
+
+  /**
+   * Set joypad reference (called after Joypad is constructed)
+   */
+  setJoypad(joypad: any): void {
+    this.joypad = joypad;
   }
 
   /**
@@ -267,6 +277,14 @@ export class MMU {
 
     // Special handling for certain registers
     switch (address) {
+      case 0xFF00: // P1/JOYP - Joypad register
+        // Write selection bits, then update joypad to respond
+        this.io[offset] = value;
+        if (this.joypad) {
+          this.joypad.updateJoypadRegister();
+        }
+        break;
+
       case 0xFF04: // DIV - writing any value resets to 0
       case 0xFF05: // TIMA - Timer counter
       case 0xFF07: // TAC - Timer control
