@@ -1,5 +1,6 @@
 import { GameBoy } from '@/emulator/GameBoy';
 import { Renderer } from '@/core/ppu/Renderer';
+import { InputManager } from './InputManager';
 import { logger } from '@/utils/logger';
 
 /**
@@ -8,6 +9,7 @@ import { logger } from '@/utils/logger';
 export class UIController {
   private gameboy: GameBoy;
   private renderer: Renderer;
+  private inputManager: InputManager;
 
   // UI elements
   private romFileInput: HTMLInputElement;
@@ -24,6 +26,9 @@ export class UIController {
   constructor(gameboy: GameBoy, renderer: Renderer) {
     this.gameboy = gameboy;
     this.renderer = renderer;
+
+    // Initialize input manager
+    this.inputManager = new InputManager(gameboy.joypad);
 
     // Get UI elements
     this.romFileInput = document.getElementById('rom-file') as HTMLInputElement;

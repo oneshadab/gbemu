@@ -2,6 +2,7 @@ import { MMU } from '@/core/memory/MMU';
 import { CPU } from '@/core/cpu/CPU';
 import { PPU } from '@/core/ppu/PPU';
 import { Timer } from '@/core/timer/Timer';
+import { Joypad } from '@/core/input/Joypad';
 import { Cartridge } from '@/core/memory/cartridge';
 import { logger } from '@/utils/logger';
 
@@ -15,6 +16,7 @@ export class GameBoy {
   cpu: CPU;
   ppu: PPU;
   timer: Timer;
+  joypad: Joypad;
 
   // State
   private loaded: boolean = false;
@@ -30,6 +32,7 @@ export class GameBoy {
     this.cpu = new CPU(this.mmu);
     this.ppu = new PPU(this.mmu);
     this.timer = new Timer(this.mmu);
+    this.joypad = new Joypad(this.mmu);
 
     logger.info('GameBoy emulator initialized');
   }
@@ -58,6 +61,7 @@ export class GameBoy {
     this.cpu.reset();
     this.ppu.reset();
     this.timer.reset();
+    this.joypad.reset();
     this.frameCount = 0;
     this.fps = 0;
 
